@@ -1,0 +1,9 @@
+flask
+flask-cors
+gunicorn
+flask-sqlalchemy
+psycopg2-binary
+alembic
+Flask-JWT-Extended
+passlib
+flasgger
