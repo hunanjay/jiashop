@@ -1,9 +1,14 @@
 from flask import Blueprint, jsonify, request
+from sqlalchemy import case, or_
 
-from api.dependencies import RoleChecker
+from api.dependencies import get_current_user, require_permission
+from db.models import Product
+from services.category_service import ensure_category
+from services.product_service import create_owned_product as service_create_owned_product
 from services.product_service import create_product as service_create_product
 from services.product_service import delete_product as service_delete_product
 from services.product_service import get_product as service_get_product
+from services.product_service import list_products_for_owner as service_list_products_for_owner
 from services.product_service import list_products as service_list_products
 from services.product_service import update_product as service_update_product
 
@@ -21,6 +26,7 @@ def _serialize_product(product):
         "image_url": product.image_url,
         "category": product.category,
         "customization": product.customization_json,
+        "owner_id": product.owner_id,
         "created_at": product.created_at.isoformat() if product.created_at else None,
     }
 
@@ -63,6 +69,17 @@ def _extract_product_payload():
     }, None
 
 
+def _resolve_product_category(category_name, allow_create=False):
+    normalized = (category_name or "").strip()
+    if not normalized:
+        return None, (jsonify({"error": "Product category is required"}), 400)
+
+    category = ensure_category(normalized, allow_create=allow_create)
+    if not category:
+        return None, (jsonify({"error": "Product category is not available"}), 400)
+    return category.name, None
+
+
 @products_bp.route("/products", methods=["GET"])
 def list_products():
     """
@@ -74,12 +91,82 @@ def list_products():
       200:
         description: Product list
     """
-    products = service_list_products()
+    current_user = get_current_user()
+    if current_user and current_user.role and current_user.role.name and current_user.role.name.lower() == "user":
+        products = service_list_products_for_owner(current_user.id)
+    else:
+        products = service_list_products()
+    return jsonify([_serialize_product(product) for product in products])
+
+
+@products_bp.route("/products/search", methods=["GET"])
+def search_products():
+    """
+    Search products
+    ---
+    tags:
+      - Products
+    parameters:
+      - in: query
+        name: q
+        required: true
+        type: string
+    responses:
+      200:
+        description: Matching products
+    """
+    query = (request.args.get("q") or "").strip()
+    if not query:
+        return jsonify([])
+
+    products = (
+        Product.query.filter(
+            or_(Product.name.ilike(f"%{query}%"), Product.description.ilike(f"%{query}%"), Product.category.ilike(f"%{query}%"))
+        )
+        .order_by(
+            case(
+                (Product.name.ilike(query), 0),
+                (Product.name.ilike(f"{query}%"), 1),
+                (Product.category.ilike(f"{query}%"), 2),
+                else_=3,
+            ),
+            Product.created_at.desc(),
+        )
+        .limit(5)
+        .all()
+    )
+    return jsonify([_serialize_product(product) for product in products])
+
+
+@products_bp.route("/workspace/products", methods=["GET"])
+@require_permission("/api/workspace/products", "GET")
+def workspace_list_products():
+    """
+    Workspace product list
+    ---
+    tags:
+      - Products
+    security:
+      - bearerAuth: []
+    responses:
+      200:
+        description: Own product list for workspace users
+      403:
+        description: Forbidden
+    """
+    current_user = get_current_user()
+    if not current_user:
+        return jsonify([])
+
+    if current_user.role and current_user.role.name and current_user.role.name.lower() == "user":
+        products = service_list_products_for_owner(current_user.id)
+    else:
+        products = service_list_products()
     return jsonify([_serialize_product(product) for product in products])
 
 
 @products_bp.route("/admin/products", methods=["GET"])
-@RoleChecker("Admin", "SuperAdmin")
+@require_permission("/api/admin/products", "GET")
 def admin_list_products():
     """
     Admin product list
@@ -119,11 +206,14 @@ def get_product(product_id):
     product = service_get_product(product_id)
     if not product:
         return jsonify({"error": "Product not found"}), 404
+    current_user = get_current_user()
+    if current_user and current_user.role and current_user.role.name and current_user.role.name.lower() == "user" and product.owner_id != current_user.id:
+        return jsonify({"error": "Can only view your own product"}), 403
     return jsonify(_serialize_product(product))
 
 
 @products_bp.route("/products", methods=["POST"])
-@RoleChecker("Admin", "SuperAdmin")
+@require_permission("/api/products", "POST")
 def create_product():
     """
     Create product
@@ -146,12 +236,25 @@ def create_product():
     if error_response:
         return error_response
 
-    product = service_create_product(payload)
+    current_user = get_current_user()
+    role_name = current_user.role.name.lower() if current_user and current_user.role and current_user.role.name else None
+    if role_name == "user":
+        category_name, category_error = _resolve_product_category(payload.get("category"), allow_create=False)
+        if category_error:
+            return category_error
+        payload["category"] = category_name
+        product = service_create_owned_product(payload, current_user.id)
+    else:
+        category_name, category_error = _resolve_product_category(payload.get("category"), allow_create=True)
+        if category_error:
+            return category_error
+        payload["category"] = category_name
+        product = service_create_product(payload)
     return jsonify(_serialize_product(product)), 201
 
 
 @products_bp.route("/products/<product_id>", methods=["PUT"])
-@RoleChecker("Admin", "SuperAdmin")
+@require_permission("/api/products/:product_id", "PUT")
 def update_product(product_id):
     """
     Update product
@@ -175,6 +278,10 @@ def update_product(product_id):
     if not product:
         return jsonify({"error": "Product not found"}), 404
 
+    current_user = get_current_user()
+    if current_user and current_user.role and current_user.role.name and current_user.role.name.lower() == "user" and product.owner_id != current_user.id:
+        return jsonify({"error": "Can only modify your own product"}), 403
+
     data = request.get_json(silent=True) or {}
     payload = {}
 
@@ -195,7 +302,10 @@ def update_product(product_id):
     if "image_url" in data:
         payload["image_url"] = data.get("image_url")
     if "category" in data:
-        payload["category"] = data.get("category")
+        category_name, category_error = _resolve_product_category(data.get("category"), allow_create=(current_user and current_user.role and current_user.role.name and current_user.role.name.lower() in {"admin", "superadmin"}))
+        if category_error:
+            return category_error
+        payload["category"] = category_name
     if "customization" in data:
         payload["customization_json"] = data.get("customization") or {}
 
@@ -204,7 +314,7 @@ def update_product(product_id):
 
 
 @products_bp.route("/products/<product_id>", methods=["DELETE"])
-@RoleChecker("Admin", "SuperAdmin")
+@require_permission("/api/products/:product_id", "DELETE")
 def delete_product(product_id):
     """
     Delete product
@@ -227,6 +337,10 @@ def delete_product(product_id):
     product = service_get_product(product_id)
     if not product:
         return jsonify({"error": "Product not found"}), 404
+
+    current_user = get_current_user()
+    if current_user and current_user.role and current_user.role.name and current_user.role.name.lower() == "user" and product.owner_id != current_user.id:
+        return jsonify({"error": "Can only delete your own product"}), 403
 
     service_delete_product(product)
     return jsonify({"message": "Product deleted", "id": product_id})

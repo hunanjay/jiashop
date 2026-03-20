@@ -1,4 +1,5 @@
 from db.models import Order, Product, Role, User, db
+from services.category_service import create_category, normalize_category_name
 
 
 DEFAULT_ROLES = ["Guest", "User", "Admin", "SuperAdmin"]
@@ -37,6 +38,7 @@ DEFAULT_PRODUCTS = [
         "image_url": "https://images.unsplash.com/photo-1549461717-d2c676941db9?auto=format&fit=crop&q=80&w=400",
         "category": "Awards",
         "customization_json": {"type": "Engraving", "fields": ["Name", "Company", "Message"]},
+        "owner_username": "admin",
     },
     {
         "name": "Personalized Leather Notebook",
@@ -46,6 +48,7 @@ DEFAULT_PRODUCTS = [
         "image_url": "https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&q=80&w=400",
         "category": "Stationery",
         "customization_json": {"type": "Embossing", "fields": ["Initials"]},
+        "owner_username": "admin",
     },
     {
         "name": "Branded Executive Gift Box",
@@ -55,7 +58,15 @@ DEFAULT_PRODUCTS = [
         "image_url": "https://images.unsplash.com/photo-1513885535751-8b9238bd345a?auto=format&fit=crop&q=80&w=400",
         "category": "Corporate Gifts",
         "customization_json": {"type": "Branding", "fields": ["Logo", "Greeting Card"]},
+        "owner_username": "content_admin",
     },
+]
+DEFAULT_CATEGORIES = [
+    {"name": "Awards", "sort_order": 1},
+    {"name": "Stationery", "sort_order": 2},
+    {"name": "Corporate Gifts", "sort_order": 3},
+    {"name": "Accessories", "sort_order": 4},
+    {"name": "Other", "sort_order": 5},
 ]
 
 
@@ -97,8 +108,10 @@ def _upsert_user(entry):
 
 def _upsert_product(entry):
     product = Product.query.filter_by(name=entry["name"]).first()
+    owner = User.query.filter_by(username=entry.get("owner_username")).first()
     if not product:
-        product = Product(**entry)
+        product = Product(**{k: v for k, v in entry.items() if k != "owner_username"})
+        product.owner_id = owner.id if owner else None
         db.session.add(product)
         return product
 
@@ -108,8 +121,24 @@ def _upsert_product(entry):
     product.image_url = entry["image_url"]
     product.category = entry["category"]
     product.customization_json = entry["customization_json"]
+    product.owner_id = owner.id if owner else product.owner_id
     db.session.add(product)
     return product
+
+
+def _seed_categories():
+    seeded = {}
+    for item in DEFAULT_CATEGORIES:
+        category = create_category(item["name"], sort_order=item.get("sort_order", 0), active=True)
+        if category:
+            seeded[normalize_category_name(category.name)] = category
+
+    for product in DEFAULT_PRODUCTS:
+        category_name = normalize_category_name(product.get("category"))
+        if category_name and category_name not in seeded:
+            category = create_category(category_name, sort_order=99, active=True)
+            if category:
+                seeded[category.name] = category
 
 
 def seed_mock_data(app):
@@ -123,6 +152,8 @@ def seed_mock_data(app):
         for user in DEFAULT_USERS:
             _upsert_user(user)
         db.session.commit()
+
+        _seed_categories()
 
         for product in DEFAULT_PRODUCTS:
             _upsert_product(product)

@@ -11,7 +11,7 @@ def authenticate_user(username: str, password: str):
 
 
 def build_user_claims(user: User):
-    role_name = user.role.name if user.role else "Guest"
+    role_name = (user.role.name if user.role else "Guest").lower()
     return {
         "username": user.username,
         "role": role_name,

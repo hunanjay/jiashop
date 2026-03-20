@@ -7,3 +7,4 @@ alembic
 Flask-JWT-Extended
 passlib
 flasgger
+casbin

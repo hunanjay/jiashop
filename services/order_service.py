@@ -16,6 +16,16 @@ def create_order(payload):
     return order
 
 
+def list_orders_for_owner(owner_id):
+    return Order.query.filter_by(owner_id=owner_id).order_by(Order.created_at.desc()).all()
+
+
+def delete_order(order):
+    db.session.delete(order)
+    db.session.commit()
+    return True
+
+
 def update_order_status(order, new_status, user_id=None):
     if user_id:
         db.session.add(

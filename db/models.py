@@ -52,6 +52,17 @@ class Product(db.Model):
     image_url = db.Column(db.String(255))
     category = db.Column(db.String(50))
     customization_json = db.Column(db.JSON)
+    owner_id = db.Column(db.String(36), db.ForeignKey("users.id"))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class ProductCategory(db.Model):
+    __tablename__ = "product_categories"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), unique=True, nullable=False)
+    active = db.Column(db.Boolean, default=True, nullable=False)
+    sort_order = db.Column(db.Integer, default=0, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
@@ -63,4 +74,5 @@ class Order(db.Model):
     items_json = db.Column(db.JSON, nullable=False)
     status = db.Column(db.String(20), default="Pending")
     total_price = db.Column(db.Float, nullable=False)
+    owner_id = db.Column(db.String(36), db.ForeignKey("users.id"))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

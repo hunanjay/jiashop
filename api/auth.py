@@ -14,7 +14,7 @@ def _serialize_user(user: User):
         "id": user.id,
         "username": user.username,
         "email": user.email,
-        "role": user.role.name if user.role else None,
+        "role": user.role.name.lower() if user.role and user.role.name else None,
         "created_at": user.created_at.isoformat() if user.created_at else None,
     }
 
@@ -97,7 +97,7 @@ def refresh():
     claims = get_jwt()
     additional_claims = {
         "username": claims.get("username", current_user.username if current_user else ""),
-        "role": claims.get("role", current_user.role.name if current_user and current_user.role else "Guest"),
+        "role": (claims.get("role") or (current_user.role.name if current_user and current_user.role else "guest")).lower(),
         "email": claims.get("email", current_user.email if current_user else ""),
     }
     from flask_jwt_extended import create_access_token
@@ -107,7 +107,7 @@ def refresh():
 
 
 @auth_bp.route("/me", methods=["GET"])
-@RoleChecker("Guest", "User", "Admin", "SuperAdmin")
+@RoleChecker("guest", "user", "admin", "superadmin")
 def me():
     """
     Current user profile
