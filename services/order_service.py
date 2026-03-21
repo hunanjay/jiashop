@@ -38,3 +38,21 @@ def update_order_status(order, new_status, user_id=None):
     order.status = new_status
     db.session.commit()
     return order
+
+
+def add_order_note(order, note, user_id=None):
+    if user_id:
+        db.session.add(
+            AuditLog(
+                user_id=user_id,
+                action=f"Note added: {note[:180]}",
+                resource_id=order.id,
+            )
+        )
+    order.remarks = note
+    db.session.commit()
+    return order
+
+
+def list_order_timeline(order_id):
+    return AuditLog.query.filter_by(resource_id=order_id).order_by(AuditLog.timestamp.desc()).all()

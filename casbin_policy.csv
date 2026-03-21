@@ -15,6 +15,10 @@ p, user, /api/admin/orders, GET
 p, user, /api/workspace/orders, POST
 p, user, /api/workspace/products, GET
 p, user, /api/workspace/orders, GET
+p, user, /api/workspace/customers, GET
+p, user, /api/workspace/customers, POST
+p, user, /api/workspace/customers/:customer_id, PATCH
+p, user, /api/workspace/customers/:customer_id, DELETE
 p, admin, /api/admin/roles, GET
 p, admin, /api/admin/users/:user_id/role, PATCH
 p, admin, /api/admin/product-categories, GET
@@ -24,10 +28,28 @@ p, admin, /api/admin/orders, GET
 p, admin, /api/admin/orders, POST
 p, admin, /api/admin/orders/:order_id/status, PUT
 p, admin, /api/admin/orders/:order_id, DELETE
+p, admin, /api/admin/customers, GET
+p, admin, /api/admin/customers, POST
+p, admin, /api/admin/customers/:customer_id, PATCH
+p, admin, /api/admin/customers/:customer_id, DELETE
+p, admin, /api/workspace/customers, GET
+p, admin, /api/workspace/customers, POST
+p, admin, /api/workspace/customers/:customer_id, PATCH
+p, admin, /api/workspace/customers/:customer_id, DELETE
+p, admin, /api/admin/users, GET
+p, admin, /api/admin/users, POST
+p, admin, /api/admin/users/:user_id, PATCH
+p, admin, /api/admin/users/:user_id/password, PATCH
+p, admin, /api/admin/users/:user_id, DELETE
+p, admin, /api/admin/stats, GET
+p, admin, /api/admin/export, GET
 p, admin, /api/admin/products, GET
 p, admin, /api/admin/products, POST
 p, admin, /api/admin/products/:product_id, PUT
 p, admin, /api/admin/products/:product_id, DELETE
+p, admin, /api/admin/product-categories, GET
+p, admin, /api/admin/product-categories, POST
+p, admin, /api/admin/product-categories/:category_id, PATCH
 p, superadmin, *, *
 g, admin, user
 g, superadmin, admin

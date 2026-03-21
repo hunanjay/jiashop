@@ -20,8 +20,15 @@ class User(db.Model):
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
+    phone = db.Column(db.String(30))
     password_hash = db.Column(db.String(255), nullable=False)
     role_id = db.Column(db.Integer, db.ForeignKey("roles.id"), nullable=False)
+    session_id = db.Column(db.String(36), unique=True)
+    access_token = db.Column(db.Text)
+    access_token_expires_at = db.Column(db.DateTime)
+    refresh_token = db.Column(db.Text)
+    refresh_token_expires_at = db.Column(db.DateTime)
+    last_login_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def set_password(self, password):
@@ -49,10 +56,13 @@ class Product(db.Model):
     description = db.Column(db.Text)
     price = db.Column(db.Float, nullable=False)
     stock = db.Column(db.Integer, nullable=False, default=10)
-    image_url = db.Column(db.String(255))
+    status = db.Column(db.String(20), default="active", nullable=False)
+    image_url = db.Column(db.Text)
     category = db.Column(db.String(50))
     customization_json = db.Column(db.JSON)
     owner_id = db.Column(db.String(36), db.ForeignKey("users.id"))
+    sales_count = db.Column(db.Integer, nullable=False, default=0)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
@@ -66,6 +76,19 @@ class ProductCategory(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+class Customer(db.Model):
+    __tablename__ = "customers"
+
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    company_name = db.Column(db.String(120), nullable=False)
+    purchaser = db.Column(db.String(80))
+    phone = db.Column(db.String(30))
+    shipping_address = db.Column(db.String(255))
+    owner_id = db.Column(db.String(36), db.ForeignKey("users.id"))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class Order(db.Model):
     __tablename__ = "orders"
 
@@ -74,5 +97,11 @@ class Order(db.Model):
     items_json = db.Column(db.JSON, nullable=False)
     status = db.Column(db.String(20), default="Pending")
     total_price = db.Column(db.Float, nullable=False)
+    customer_id = db.Column(db.String(36), db.ForeignKey("customers.id"))
+    customer_phone = db.Column(db.String(30))
+    shipping_address = db.Column(db.String(255))
+    custom_logo_url = db.Column(db.Text)
+    design_file_url = db.Column(db.Text)
+    remarks = db.Column(db.Text)
     owner_id = db.Column(db.String(36), db.ForeignKey("users.id"))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)

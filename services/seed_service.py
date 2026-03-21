@@ -7,24 +7,28 @@ DEFAULT_USERS = [
     {
         "username": "superadmin",
         "email": "superadmin@giftcraft.com",
+        "phone": "13800000001",
         "password": "superadmin123",
         "role": "SuperAdmin",
     },
     {
         "username": "admin",
         "email": "admin@giftcraft.com",
+        "phone": "13800000002",
         "password": "admin123",
         "role": "Admin",
     },
     {
         "username": "content_admin",
         "email": "content_admin@giftcraft.com",
+        "phone": "13800000003",
         "password": "content123",
         "role": "Admin",
     },
     {
         "username": "guest",
         "email": "guest@giftcraft.com",
+        "phone": "13800000004",
         "password": "guest123",
         "role": "Guest",
     },
@@ -87,6 +91,7 @@ def _upsert_user(entry):
         user = User(
             username=entry["username"],
             email=entry["email"],
+            phone=entry.get("phone"),
             role_id=role.id,
         )
         user.set_password(entry["password"])
@@ -96,6 +101,9 @@ def _upsert_user(entry):
     changed = False
     if user.email != entry["email"]:
         user.email = entry["email"]
+        changed = True
+    if user.phone != entry.get("phone"):
+        user.phone = entry.get("phone")
         changed = True
     if user.role_id != role.id:
         user.role_id = role.id
@@ -144,6 +152,13 @@ def _seed_categories():
 def seed_mock_data(app):
     with app.app_context():
         db.create_all()
+
+        if User.query.first():
+            return {
+                "roles": Role.query.count(),
+                "users": User.query.count(),
+                "products": Product.query.count(),
+            }
 
         for role_name in DEFAULT_ROLES:
             _upsert_role(role_name)

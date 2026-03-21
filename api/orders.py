@@ -2,9 +2,11 @@ from flask import Blueprint, jsonify, request
 
 from api.dependencies import get_current_user, require_permission
 from services.order_service import create_order as service_create_order
+from services.order_service import add_order_note as service_add_order_note
 from services.order_service import delete_order as service_delete_order
 from services.order_service import get_order as service_get_order
 from services.order_service import list_orders as service_list_orders
+from services.order_service import list_order_timeline as service_list_order_timeline
 from services.order_service import list_orders_for_owner as service_list_orders_for_owner
 from services.order_service import update_order_status as service_update_order_status
 
@@ -19,8 +21,24 @@ def _serialize_order(order):
         "items": order.items_json,
         "status": order.status,
         "total_price": order.total_price,
+        "customer_id": order.customer_id,
+        "customer_phone": order.customer_phone,
+        "shipping_address": order.shipping_address,
+        "custom_logo_url": order.custom_logo_url,
+        "design_file_url": order.design_file_url,
+        "remarks": order.remarks,
         "owner_id": order.owner_id,
         "created_at": order.created_at.isoformat() if order.created_at else None,
+    }
+
+
+def _serialize_timeline_item(item):
+    return {
+        "id": item.id,
+        "user_id": item.user_id,
+        "action": item.action,
+        "resource_id": item.resource_id,
+        "timestamp": item.timestamp.isoformat() if item.timestamp else None,
     }
 
 
@@ -46,6 +64,12 @@ def _build_order_payload(data, *, require_customer_name=False, status_default="P
         "items_json": items,
         "total_price": total_price,
         "status": (data.get("status") or status_default).strip() or status_default,
+        "customer_id": (data.get("customer_id") or "").strip() or None,
+        "customer_phone": (data.get("customer_phone") or "").strip() or None,
+        "shipping_address": (data.get("shipping_address") or "").strip() or None,
+        "custom_logo_url": (data.get("custom_logo_url") or "").strip() or None,
+        "design_file_url": (data.get("design_file_url") or "").strip() or None,
+        "remarks": (data.get("remarks") or "").strip() or None,
     }, None
 
 
@@ -265,6 +289,33 @@ def update_order_status(order_id):
     user = get_current_user()
     order = service_update_order_status(order, new_status, user.id if user else None)
     return jsonify(_serialize_order(order))
+
+
+@orders_bp.route("/admin/orders/<order_id>/note", methods=["POST"])
+@require_permission("/api/admin/orders/:order_id/note", "POST")
+def add_order_note(order_id):
+    data = request.get_json(silent=True) or {}
+    note = (data.get("note") or "").strip()
+    if not note:
+        return jsonify({"error": "note is required"}), 400
+
+    order = service_get_order(order_id)
+    if not order:
+        return jsonify({"error": "Order not found"}), 404
+
+    current_user = get_current_user()
+    order = service_add_order_note(order, note, current_user.id if current_user else None)
+    return jsonify(_serialize_order(order))
+
+
+@orders_bp.route("/admin/orders/<order_id>/timeline", methods=["GET"])
+@require_permission("/api/admin/orders/:order_id/timeline", "GET")
+def get_order_timeline(order_id):
+    order = service_get_order(order_id)
+    if not order:
+      return jsonify({"error": "Order not found"}), 404
+    timeline = service_list_order_timeline(order_id)
+    return jsonify([_serialize_timeline_item(item) for item in timeline])
 
 
 @orders_bp.route("/admin/orders/<order_id>", methods=["DELETE"])

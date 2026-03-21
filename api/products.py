@@ -23,10 +23,13 @@ def _serialize_product(product):
         "description": product.description,
         "price": product.price,
         "stock": product.stock,
+        "status": product.status,
         "image_url": product.image_url,
         "category": product.category,
         "customization": product.customization_json,
         "owner_id": product.owner_id,
+        "sales_count": product.sales_count,
+        "updated_at": product.updated_at.isoformat() if product.updated_at else None,
         "created_at": product.created_at.isoformat() if product.created_at else None,
     }
 
@@ -58,11 +61,18 @@ def _extract_product_payload():
     if stock is None or stock < 0:
         return None, (jsonify({"error": "Product stock must be a non-negative integer"}), 400)
 
+    status = data.get("status")
+    if isinstance(status, str):
+        status = status.strip() or "active"
+    else:
+        status = status or "active"
+
     return {
         "name": name,
         "description": data.get("description"),
         "price": price,
         "stock": stock,
+        "status": status,
         "image_url": data.get("image_url"),
         "category": data.get("category"),
         "customization_json": data.get("customization") or {},
@@ -121,6 +131,7 @@ def search_products():
 
     products = (
         Product.query.filter(
+            Product.status != "deleted",
             or_(Product.name.ilike(f"%{query}%"), Product.description.ilike(f"%{query}%"), Product.category.ilike(f"%{query}%"))
         )
         .order_by(
@@ -207,7 +218,8 @@ def get_product(product_id):
     if not product:
         return jsonify({"error": "Product not found"}), 404
     current_user = get_current_user()
-    if current_user and current_user.role and current_user.role.name and current_user.role.name.lower() == "user" and product.owner_id != current_user.id:
+    current_role = current_user.role.name.lower() if current_user and current_user.role and current_user.role.name else None
+    if current_role == "user" and product.owner_id != current_user.id:
         return jsonify({"error": "Can only view your own product"}), 403
     return jsonify(_serialize_product(product))
 
@@ -279,7 +291,8 @@ def update_product(product_id):
         return jsonify({"error": "Product not found"}), 404
 
     current_user = get_current_user()
-    if current_user and current_user.role and current_user.role.name and current_user.role.name.lower() == "user" and product.owner_id != current_user.id:
+    current_role = current_user.role.name.lower() if current_user and current_user.role and current_user.role.name else None
+    if current_role == "user" and product.owner_id != current_user.id:
         return jsonify({"error": "Can only modify your own product"}), 403
 
     data = request.get_json(silent=True) or {}
@@ -302,12 +315,14 @@ def update_product(product_id):
     if "image_url" in data:
         payload["image_url"] = data.get("image_url")
     if "category" in data:
-        category_name, category_error = _resolve_product_category(data.get("category"), allow_create=(current_user and current_user.role and current_user.role.name and current_user.role.name.lower() in {"admin", "superadmin"}))
+        category_name, category_error = _resolve_product_category(data.get("category"), allow_create=(current_role in {"admin", "superadmin"}))
         if category_error:
             return category_error
         payload["category"] = category_name
     if "customization" in data:
         payload["customization_json"] = data.get("customization") or {}
+    if "status" in data and data.get("status") is not None:
+        payload["status"] = (data.get("status") or "active").strip() if isinstance(data.get("status"), str) else data.get("status")
 
     product = service_update_product(product, payload)
     return jsonify(_serialize_product(product))
@@ -339,8 +354,9 @@ def delete_product(product_id):
         return jsonify({"error": "Product not found"}), 404
 
     current_user = get_current_user()
-    if current_user and current_user.role and current_user.role.name and current_user.role.name.lower() == "user" and product.owner_id != current_user.id:
+    current_role = current_user.role.name.lower() if current_user and current_user.role and current_user.role.name else None
+    if current_role == "user" and product.owner_id != current_user.id:
         return jsonify({"error": "Can only delete your own product"}), 403
 
     service_delete_product(product)
-    return jsonify({"message": "Product deleted", "id": product_id})
+    return jsonify({"message": "Product deleted", "id": product_id, "status": "deleted"})

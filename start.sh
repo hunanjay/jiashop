@@ -13,10 +13,6 @@ echo "PostgreSQL started"
 echo "Running migrations..."
 python3 -m alembic -c db/alembic.ini upgrade head
 
-# Seed mock data
-echo "Seeding mock data..."
-python3 seed_mock_data.py
-
 # Start application
 echo "Starting application..."
 python3 app.py

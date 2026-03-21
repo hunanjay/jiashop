@@ -33,6 +33,11 @@ class RoleChecker:
                 user = get_current_user()
                 current_role = user.role.name.lower() if user and user.role and user.role.name else None
 
+            user = get_current_user()
+            session_id = claims.get("session_id")
+            if user and user.session_id and session_id and user.session_id != session_id:
+                return jsonify({"error": "Session expired or revoked"}), 401
+
             if self.allowed_roles and current_role not in self.allowed_roles:
                 return (
                     jsonify(
