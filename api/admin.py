@@ -299,7 +299,7 @@ def workspace_list_customers():
     current_user = get_current_user()
     query = Customer.query
     if current_user and current_user.role and current_user.role.name and current_user.role.name.lower() == "user":
-        query = query.filter((Customer.owner_id == current_user.id) | (Customer.owner_id.is_(None)))
+        query = query.filter(Customer.owner_id == current_user.id)
     customers = query.order_by(Customer.created_at.desc()).all()
     return jsonify([_serialize_customer(customer) for customer in customers])
 

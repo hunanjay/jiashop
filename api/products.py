@@ -8,8 +8,8 @@ from services.product_service import create_owned_product as service_create_owne
 from services.product_service import create_product as service_create_product
 from services.product_service import delete_product as service_delete_product
 from services.product_service import get_product as service_get_product
-from services.product_service import list_products_for_owner as service_list_products_for_owner
 from services.product_service import list_products as service_list_products
+from services.product_service import list_products_for_owner as service_list_products_for_owner
 from services.product_service import update_product as service_update_product
 
 
@@ -101,11 +101,7 @@ def list_products():
       200:
         description: Product list
     """
-    current_user = get_current_user()
-    if current_user and current_user.role and current_user.role.name and current_user.role.name.lower() == "user":
-        products = service_list_products_for_owner(current_user.id)
-    else:
-        products = service_list_products()
+    products = service_list_products()
     return jsonify([_serialize_product(product) for product in products])
 
 
@@ -166,10 +162,8 @@ def workspace_list_products():
         description: Forbidden
     """
     current_user = get_current_user()
-    if not current_user:
-        return jsonify([])
-
-    if current_user.role and current_user.role.name and current_user.role.name.lower() == "user":
+    role_name = current_user.role.name.lower() if current_user and current_user.role and current_user.role.name else None
+    if role_name == "user":
         products = service_list_products_for_owner(current_user.id)
     else:
         products = service_list_products()
@@ -217,10 +211,6 @@ def get_product(product_id):
     product = service_get_product(product_id)
     if not product:
         return jsonify({"error": "Product not found"}), 404
-    current_user = get_current_user()
-    current_role = current_user.role.name.lower() if current_user and current_user.role and current_user.role.name else None
-    if current_role == "user" and product.owner_id != current_user.id:
-        return jsonify({"error": "Can only view your own product"}), 403
     return jsonify(_serialize_product(product))
 
 
