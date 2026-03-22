@@ -1,7 +1,7 @@
 import os
 
 from flasgger import Swagger
-from flask import Flask, jsonify
+from flask import Flask, jsonify, send_from_directory
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from sqlalchemy import inspect, text
@@ -166,7 +166,7 @@ def ensure_schema(app):
 
 
 def create_app():
-    app = Flask(__name__)
+    app = Flask(__name__, static_folder="static")
     app.config.from_object(DevelopmentConfig)
     CORS(app, supports_credentials=True, resources={r"/api/*": {"origins": "*"}})
     db.init_app(app)
@@ -176,15 +176,12 @@ def create_app():
     Swagger(app, template=SWAGGER_TEMPLATE, config=SWAGGER_CONFIG)
     ensure_schema(app)
 
-    @app.route("/")
-    def index():
-        return jsonify(
-            {
-                "name": "GiftCraft API",
-                "docs": "/apidocs/",
-                "health": "/api/health",
-            }
-        )
+    @app.route("/", defaults={"path": ""})
+    @app.route("/<path:path>")
+    def serve_frontend(path):
+        if path and os.path.exists(os.path.join(app.static_folder, path)):
+            return send_from_directory(app.static_folder, path)
+        return send_from_directory(app.static_folder, "index.html")
 
     return app
 
