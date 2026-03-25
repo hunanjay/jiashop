@@ -170,7 +170,7 @@ def upgrade() -> None:
         sa.select(roles_table.c.id).where(roles_table.c.name == "Admin")
     ).scalar_one()
 
-    admin_password_hash = generate_password_hash(DEFAULT_ADMIN["password"])
+    admin_password_hash = generate_password_hash(DEFAULT_ADMIN["password"], method="pbkdf2:sha256")
     admin_row = conn.execute(
         sa.select(users_table.c.id, users_table.c.role_id).where(users_table.c.username == DEFAULT_ADMIN["username"])
     ).first()

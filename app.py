@@ -160,6 +160,23 @@ def ensure_schema(app):
             if any(column not in product_columns for column in product_additions):
                 db.session.commit()
 
+        if not inspector.has_table("cart_items"):
+            db.session.execute(
+                text(
+                    """
+                    CREATE TABLE cart_items (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        cart_token VARCHAR(64) NOT NULL,
+                        product_id VARCHAR(36) NOT NULL,
+                        quantity INTEGER NOT NULL DEFAULT 1,
+                        updated_at TIMESTAMP,
+                        created_at TIMESTAMP
+                    )
+                    """
+                )
+            )
+            db.session.commit()
+
         _ensure_text_column("products", "image_url")
         _ensure_text_column("orders", "custom_logo_url")
         _ensure_text_column("orders", "design_file_url")

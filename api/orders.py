@@ -64,6 +64,7 @@ def _build_order_payload(data, *, require_customer_name=False, status_default="P
         "items_json": items,
         "total_price": total_price,
         "status": (data.get("status") or status_default).strip() or status_default,
+        "owner_id": (data.get("owner_id") or "").strip() or None,
         "customer_id": (data.get("customer_id") or "").strip() or None,
         "customer_phone": (data.get("customer_phone") or "").strip() or None,
         "shipping_address": (data.get("shipping_address") or "").strip() or None,
@@ -71,6 +72,20 @@ def _build_order_payload(data, *, require_customer_name=False, status_default="P
         "design_file_url": (data.get("design_file_url") or "").strip() or None,
         "remarks": (data.get("remarks") or "").strip() or None,
     }, None
+
+
+def _resolve_owner_id(payload):
+    current_user = get_current_user()
+    if not current_user:
+        return payload.get("owner_id")
+
+    current_role = current_user.role.name.lower() if current_user.role and current_user.role.name else ""
+    requested_owner_id = payload.get("owner_id")
+
+    if current_role in {"admin", "superadmin"} and requested_owner_id:
+        return requested_owner_id
+
+    return current_user.id
 
 
 @orders_bp.route("/orders", methods=["POST"])
@@ -94,12 +109,7 @@ def create_order():
     if error_response:
         return error_response
 
-    order = service_create_order(
-        {
-            **payload,
-            "owner_id": get_current_user().id if get_current_user() else None,
-        }
-    )
+    order = service_create_order({**payload, "owner_id": _resolve_owner_id(payload)})
     return jsonify(_serialize_order(order)), 201
 
 
@@ -207,12 +217,7 @@ def create_workspace_order():
         return error_response
 
     current_user = get_current_user()
-    order = service_create_order(
-        {
-            **payload,
-            "owner_id": current_user.id if current_user else None,
-        }
-    )
+    order = service_create_order({**payload, "owner_id": _resolve_owner_id(payload)})
     return jsonify(_serialize_order(order)), 201
 
 
@@ -241,12 +246,7 @@ def create_admin_order():
     if error_response:
         return error_response
 
-    order = service_create_order(
-        {
-            **payload,
-            "owner_id": get_current_user().id if get_current_user() else None,
-        }
-    )
+    order = service_create_order({**payload, "owner_id": _resolve_owner_id(payload)})
     return jsonify(_serialize_order(order)), 201
 
 

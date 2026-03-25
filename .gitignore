@@ -1,0 +1,13 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Local env / build artifacts
+.env
+.venv/
+venv/
+
+# App data
+test.db
