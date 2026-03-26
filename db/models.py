@@ -58,6 +58,7 @@ class Product(db.Model):
     stock = db.Column(db.Integer, nullable=False, default=10)
     status = db.Column(db.String(20), default="active", nullable=False)
     image_url = db.Column(db.Text)
+    images_json = db.Column(db.JSON)
     category = db.Column(db.String(50))
     customization_json = db.Column(db.JSON)
     owner_id = db.Column(db.String(36), db.ForeignKey("users.id"))

@@ -26,6 +26,7 @@ def _serialize_product(product):
         "stock": product.stock,
         "status": product.status,
         "image_url": get_signed_url(product.image_url),
+        "images": [get_signed_url(img) for img in (product.images_json or [])],
         "category": product.category,
         "customization": product.customization_json,
         "owner_id": product.owner_id,
@@ -75,6 +76,7 @@ def _extract_product_payload():
         "stock": stock,
         "status": status,
         "image_url": upload_base64_to_oss(data.get("image_url")),
+        "images_json": [upload_base64_to_oss(img) for img in (data.get("images") or [])],
         "category": data.get("category"),
         "customization_json": data.get("customization") or {},
     }, None
@@ -305,6 +307,8 @@ def update_product(product_id):
         payload["stock"] = stock
     if "image_url" in data:
         payload["image_url"] = upload_base64_to_oss(data.get("image_url"))
+    if "images" in data:
+        payload["images_json"] = [upload_base64_to_oss(img) for img in (data.get("images") or [])]
     if "category" in data:
         category_name, category_error = _resolve_product_category(data.get("category"), allow_create=(current_role in {"admin", "superadmin"}))
         if category_error:

@@ -11,3 +11,4 @@ venv/
 
 # App data
 test.db
+.code-workspace
