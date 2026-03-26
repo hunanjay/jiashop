@@ -9,6 +9,7 @@ from services.order_service import list_orders as service_list_orders
 from services.order_service import list_order_timeline as service_list_order_timeline
 from services.order_service import list_orders_for_owner as service_list_orders_for_owner
 from services.order_service import update_order_status as service_update_order_status
+from services.oss_service import upload_base64_to_oss, get_signed_url
 
 
 orders_bp = Blueprint("orders", __name__, url_prefix="/api")
@@ -24,8 +25,8 @@ def _serialize_order(order):
         "customer_id": order.customer_id,
         "customer_phone": order.customer_phone,
         "shipping_address": order.shipping_address,
-        "custom_logo_url": order.custom_logo_url,
-        "design_file_url": order.design_file_url,
+        "custom_logo_url": get_signed_url(order.custom_logo_url),
+        "design_file_url": get_signed_url(order.design_file_url),
         "remarks": order.remarks,
         "owner_id": order.owner_id,
         "created_at": order.created_at.isoformat() if order.created_at else None,
@@ -68,8 +69,8 @@ def _build_order_payload(data, *, require_customer_name=False, status_default="P
         "customer_id": (data.get("customer_id") or "").strip() or None,
         "customer_phone": (data.get("customer_phone") or "").strip() or None,
         "shipping_address": (data.get("shipping_address") or "").strip() or None,
-        "custom_logo_url": (data.get("custom_logo_url") or "").strip() or None,
-        "design_file_url": (data.get("design_file_url") or "").strip() or None,
+        "custom_logo_url": upload_base64_to_oss((data.get("custom_logo_url") or "").strip() or None),
+        "design_file_url": upload_base64_to_oss((data.get("design_file_url") or "").strip() or None),
         "remarks": (data.get("remarks") or "").strip() or None,
     }, None
 

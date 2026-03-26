@@ -11,6 +11,7 @@ from services.product_service import get_product as service_get_product
 from services.product_service import list_products as service_list_products
 from services.product_service import list_products_for_owner as service_list_products_for_owner
 from services.product_service import update_product as service_update_product
+from services.oss_service import upload_base64_to_oss, get_signed_url
 
 
 products_bp = Blueprint("products", __name__, url_prefix="/api")
@@ -24,7 +25,7 @@ def _serialize_product(product):
         "price": product.price,
         "stock": product.stock,
         "status": product.status,
-        "image_url": product.image_url,
+        "image_url": get_signed_url(product.image_url),
         "category": product.category,
         "customization": product.customization_json,
         "owner_id": product.owner_id,
@@ -73,7 +74,7 @@ def _extract_product_payload():
         "price": price,
         "stock": stock,
         "status": status,
-        "image_url": data.get("image_url"),
+        "image_url": upload_base64_to_oss(data.get("image_url")),
         "category": data.get("category"),
         "customization_json": data.get("customization") or {},
     }, None
@@ -303,7 +304,7 @@ def update_product(product_id):
             return jsonify({"error": "Product stock must be a non-negative integer"}), 400
         payload["stock"] = stock
     if "image_url" in data:
-        payload["image_url"] = data.get("image_url")
+        payload["image_url"] = upload_base64_to_oss(data.get("image_url"))
     if "category" in data:
         category_name, category_error = _resolve_product_category(data.get("category"), allow_create=(current_role in {"admin", "superadmin"}))
         if category_error:

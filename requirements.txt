@@ -8,3 +8,5 @@ Flask-JWT-Extended
 passlib
 flasgger
 casbin
+oss2
+Pillow
