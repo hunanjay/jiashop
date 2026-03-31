@@ -5,6 +5,8 @@ FROM python:3.12-slim
 WORKDIR /app
 
 ENV DEBIAN_FRONTEND=noninteractive
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1
+ENV PIP_DEFAULT_TIMEOUT=120
 
 # Install netcat for wait script
 RUN if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
@@ -18,7 +20,7 @@ RUN if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
 COPY requirements.txt .
 
 # Install any needed packages specified in requirements.txt
-RUN pip install -r requirements.txt
+RUN pip install --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple/ -r requirements.txt
 
 # Copy the current directory contents into the container at /app
 COPY . .
