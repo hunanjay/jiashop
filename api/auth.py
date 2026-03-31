@@ -43,10 +43,10 @@ def login():
         schema:
           type: object
           required:
-            - username
+            - identifier
             - password
           properties:
-            username:
+            identifier:
               type: string
             password:
               type: string
@@ -59,13 +59,13 @@ def login():
         description: Missing credentials
     """
     data = request.get_json(silent=True) or {}
-    username = data.get("username", "").strip()
+    identifier = (data.get("identifier") or "").strip()
     password = data.get("password", "")
 
-    if not username or not password:
-        return jsonify({"error": "Username and password are required"}), 400
+    if not identifier or not password:
+        return jsonify({"error": "Email or phone number and password are required"}), 400
 
-    user = authenticate_user(username, password)
+    user = authenticate_user(identifier, password)
     if not user:
         return jsonify({"error": "Invalid credentials"}), 401
 

@@ -45,7 +45,7 @@ def upgrade() -> None:
             sa.Column("id", sa.String(length=36), nullable=False),
             sa.Column("username", sa.String(length=80), nullable=False, unique=True),
             sa.Column("email", sa.String(length=120), nullable=False, unique=True),
-            sa.Column("phone", sa.String(length=30), nullable=True),
+            sa.Column("phone", sa.String(length=30), nullable=True, unique=True),
             sa.Column("password_hash", sa.String(length=255), nullable=False),
             sa.Column("role_id", sa.Integer(), nullable=False),
             sa.Column("session_id", sa.String(length=36), nullable=True, unique=True),
