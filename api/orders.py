@@ -8,6 +8,7 @@ from services.order_service import get_order as service_get_order
 from services.order_service import list_orders as service_list_orders
 from services.order_service import list_order_timeline as service_list_order_timeline
 from services.order_service import list_orders_for_owner as service_list_orders_for_owner
+from services.order_service import update_order as service_update_order
 from services.order_service import update_order_status as service_update_order_status
 from services.oss_service import upload_base64_to_oss, get_signed_url
 
@@ -307,6 +308,83 @@ def update_order_status(order_id):
     user = get_current_user()
     order = service_update_order_status(order, new_status, user.id if user else None)
     return jsonify(_serialize_order(order))
+
+
+def _update_order_common(order_id, scope="admin"):
+    data = request.get_json(silent=True) or {}
+    order = service_get_order(order_id)
+    if not order:
+        return jsonify({"error": "Order not found"}), 404
+
+    current_user = get_current_user()
+    if current_user and current_user.role and current_user.role.name and current_user.role.name.lower() == "user" and order.owner_id != current_user.id:
+        return jsonify({"error": "Can only modify your own order"}), 403
+
+    payload, error_response = _build_order_payload(data, require_customer_name=True, status_default=order.status)
+    if error_response:
+        return error_response
+
+    if not payload.get("owner_id"):
+        payload["owner_id"] = order.owner_id
+
+    order = service_update_order(order, payload, current_user.id if current_user else None)
+    return jsonify(_serialize_order(order))
+
+
+@orders_bp.route("/admin/orders/<order_id>", methods=["PUT"])
+@require_permission("/api/admin/orders/:order_id", "PUT")
+def update_admin_order(order_id):
+    """
+    Update order
+    ---
+    tags:
+      - Orders
+    security:
+      - bearerAuth: []
+    parameters:
+      - in: path
+        name: order_id
+        required: true
+        type: string
+    responses:
+      200:
+        description: Order updated
+      400:
+        description: Invalid payload
+      404:
+        description: Order not found
+      403:
+        description: Forbidden
+    """
+    return _update_order_common(order_id, scope="admin")
+
+
+@orders_bp.route("/workspace/orders/<order_id>", methods=["PUT"])
+@require_permission("/api/workspace/orders/:order_id", "PUT")
+def update_workspace_order(order_id):
+    """
+    Update workspace order
+    ---
+    tags:
+      - Orders
+    security:
+      - bearerAuth: []
+    parameters:
+      - in: path
+        name: order_id
+        required: true
+        type: string
+    responses:
+      200:
+        description: Order updated
+      400:
+        description: Invalid payload
+      404:
+        description: Order not found
+      403:
+        description: Forbidden
+    """
+    return _update_order_common(order_id, scope="workspace")
 
 
 @orders_bp.route("/admin/orders/<order_id>/note", methods=["POST"])
