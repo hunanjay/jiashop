@@ -67,6 +67,7 @@ def create_user():
     data = request.get_json(silent=True) or {}
     username = (data.get("username") or "").strip()
     email = (data.get("email") or "").strip()
+    phone = (data.get("phone") or "").strip() or None
     password = (data.get("password") or "").strip()
     role_name = (data.get("role") or "user").strip()
 
@@ -75,6 +76,8 @@ def create_user():
 
     if User.query.filter((User.username == username) | (User.email == email)).first():
         return jsonify({"error": "username or email already exists"}), 400
+    if phone and User.query.filter(User.phone == phone).first():
+        return jsonify({"error": "phone already exists"}), 400
 
     role = get_role_by_name(role_name)
     if not role:
@@ -83,7 +86,7 @@ def create_user():
     user = User(
         username=username,
         email=email,
-        phone=(data.get("phone") or "").strip() or None,
+        phone=phone,
         role_id=role.id,
         password_hash=generate_password_hash(password),
     )
@@ -185,7 +188,10 @@ def update_user(user_id):
             return jsonify({"error": "email is required"}), 400
         user.email = email
     if "phone" in data:
-        user.phone = (data.get("phone") or "").strip() or None
+        phone = (data.get("phone") or "").strip() or None
+        if phone and User.query.filter(User.phone == phone, User.id != user.id).first():
+            return jsonify({"error": "phone already exists"}), 400
+        user.phone = phone
     if "role" in data:
         role = get_role_by_name((data.get("role") or "").strip())
         if not role:

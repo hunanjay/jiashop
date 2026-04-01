@@ -16,6 +16,10 @@ orders_bp = Blueprint("orders", __name__, url_prefix="/api")
 
 
 def _serialize_order(order):
+    effect_images = order.effect_images_json or []
+    if not effect_images and order.design_file_url:
+        effect_images = [order.design_file_url]
+
     return {
         "id": order.id,
         "customer_name": order.customer_name,
@@ -27,6 +31,7 @@ def _serialize_order(order):
         "shipping_address": order.shipping_address,
         "custom_logo_url": get_signed_url(order.custom_logo_url),
         "design_file_url": get_signed_url(order.design_file_url),
+        "effect_images": [get_signed_url(image) for image in effect_images],
         "remarks": order.remarks,
         "owner_id": order.owner_id,
         "created_at": order.created_at.isoformat() if order.created_at else None,
@@ -46,6 +51,7 @@ def _serialize_timeline_item(item):
 def _build_order_payload(data, *, require_customer_name=False, status_default="Pending"):
     customer_name = (data.get("customer_name") or "").strip()
     items = data.get("items", [])
+    effect_images = data.get("effect_images")
 
     if require_customer_name and not customer_name:
         return None, (jsonify({"error": "customer_name is required"}), 400)
@@ -54,6 +60,12 @@ def _build_order_payload(data, *, require_customer_name=False, status_default="P
 
     if not isinstance(items, list):
         return None, (jsonify({"error": "items must be a list"}), 400)
+    if effect_images is None and data.get("design_file_url") is not None:
+        effect_images = [data.get("design_file_url")]
+    if effect_images is None:
+        effect_images = []
+    if not isinstance(effect_images, list):
+        return None, (jsonify({"error": "effect_images must be a list"}), 400)
 
     try:
         total_price = float(data.get("total_price", 0) or 0)
@@ -71,6 +83,11 @@ def _build_order_payload(data, *, require_customer_name=False, status_default="P
         "shipping_address": (data.get("shipping_address") or "").strip() or None,
         "custom_logo_url": upload_base64_to_oss((data.get("custom_logo_url") or "").strip() or None),
         "design_file_url": upload_base64_to_oss((data.get("design_file_url") or "").strip() or None),
+        "effect_images_json": [
+            upload_base64_to_oss(image.strip() if isinstance(image, str) else image)
+            for image in effect_images
+            if image
+        ],
         "remarks": (data.get("remarks") or "").strip() or None,
     }, None
 
@@ -305,6 +322,27 @@ def add_order_note(order_id):
         return jsonify({"error": "Order not found"}), 404
 
     current_user = get_current_user()
+    if current_user and current_user.role and current_user.role.name and current_user.role.name.lower() == "user" and order.owner_id != current_user.id:
+        return jsonify({"error": "Can only modify your own order"}), 403
+    order = service_add_order_note(order, note, current_user.id if current_user else None)
+    return jsonify(_serialize_order(order))
+
+
+@orders_bp.route("/workspace/orders/<order_id>/note", methods=["POST"])
+@require_permission("/api/workspace/orders/:order_id/note", "POST")
+def add_workspace_order_note(order_id):
+    data = request.get_json(silent=True) or {}
+    note = (data.get("note") or "").strip()
+    if not note:
+        return jsonify({"error": "note is required"}), 400
+
+    order = service_get_order(order_id)
+    if not order:
+        return jsonify({"error": "Order not found"}), 404
+
+    current_user = get_current_user()
+    if current_user and current_user.role and current_user.role.name and current_user.role.name.lower() == "user" and order.owner_id != current_user.id:
+        return jsonify({"error": "Can only modify your own order"}), 403
     order = service_add_order_note(order, note, current_user.id if current_user else None)
     return jsonify(_serialize_order(order))
 
@@ -314,7 +352,23 @@ def add_order_note(order_id):
 def get_order_timeline(order_id):
     order = service_get_order(order_id)
     if not order:
-      return jsonify({"error": "Order not found"}), 404
+        return jsonify({"error": "Order not found"}), 404
+    current_user = get_current_user()
+    if current_user and current_user.role and current_user.role.name and current_user.role.name.lower() == "user" and order.owner_id != current_user.id:
+        return jsonify({"error": "Can only view your own order"}), 403
+    timeline = service_list_order_timeline(order_id)
+    return jsonify([_serialize_timeline_item(item) for item in timeline])
+
+
+@orders_bp.route("/workspace/orders/<order_id>/timeline", methods=["GET"])
+@require_permission("/api/workspace/orders/:order_id/timeline", "GET")
+def get_workspace_order_timeline(order_id):
+    order = service_get_order(order_id)
+    if not order:
+        return jsonify({"error": "Order not found"}), 404
+    current_user = get_current_user()
+    if current_user and current_user.role and current_user.role.name and current_user.role.name.lower() == "user" and order.owner_id != current_user.id:
+        return jsonify({"error": "Can only view your own order"}), 403
     timeline = service_list_order_timeline(order_id)
     return jsonify([_serialize_timeline_item(item) for item in timeline])
 

@@ -13,9 +13,13 @@ p, user, /api/orders/:order_id, PUT
 p, user, /api/orders/:order_id, DELETE
 p, user, /api/admin/orders, GET
 p, user, /api/admin/orders/:order_id/status, PUT
+p, user, /api/admin/orders/:order_id/note, POST
+p, user, /api/admin/orders/:order_id/timeline, GET
 p, user, /api/workspace/orders, POST
 p, user, /api/workspace/products, GET
 p, user, /api/workspace/orders, GET
+p, user, /api/workspace/orders/:order_id/note, POST
+p, user, /api/workspace/orders/:order_id/timeline, GET
 p, user, /api/workspace/customers, GET
 p, user, /api/workspace/customers, POST
 p, user, /api/workspace/customers/:customer_id, PATCH
@@ -31,6 +35,8 @@ p, admin, /api/admin/product-categories/:category_id, PATCH
 p, admin, /api/admin/orders, GET
 p, admin, /api/admin/orders, POST
 p, admin, /api/admin/orders/:order_id/status, PUT
+p, admin, /api/admin/orders/:order_id/note, POST
+p, admin, /api/admin/orders/:order_id/timeline, GET
 p, admin, /api/admin/orders/:order_id, DELETE
 p, admin, /api/admin/customers, GET
 p, admin, /api/admin/customers, POST
@@ -40,6 +46,8 @@ p, admin, /api/workspace/customers, GET
 p, admin, /api/workspace/customers, POST
 p, admin, /api/workspace/customers/:customer_id, PATCH
 p, admin, /api/workspace/customers/:customer_id, DELETE
+p, admin, /api/workspace/orders/:order_id/note, POST
+p, admin, /api/workspace/orders/:order_id/timeline, GET
 p, admin, /api/admin/users, GET
 p, admin, /api/admin/users, POST
 p, admin, /api/admin/users/:user_id, PATCH

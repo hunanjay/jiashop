@@ -6,8 +6,13 @@ from flask_jwt_extended import create_access_token, create_refresh_token
 from db.models import User
 
 
-def authenticate_user(username: str, password: str):
-    user = User.query.filter_by(username=username).first()
+def authenticate_user(identifier: str, password: str):
+    normalized_identifier = (identifier or "").strip()
+
+    user = (
+        User.query.filter(User.email.ilike(normalized_identifier)).first()
+        or User.query.filter_by(phone=normalized_identifier).first()
+    )
     if user and user.check_password(password):
         return user
     return None
