@@ -7,6 +7,8 @@ WORKDIR /app
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1
 ENV PIP_DEFAULT_TIMEOUT=120
+ENV PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
+ENV PIP_TRUSTED_HOST=mirrors.aliyun.com
 
 # Install netcat for wait script
 RUN if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
@@ -20,7 +22,7 @@ RUN if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
 COPY requirements.txt .
 
 # Install any needed packages specified in requirements.txt
-RUN pip install --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple/ -r requirements.txt
+RUN pip install --no-cache-dir --retries 10 --timeout 120 -r requirements.txt
 
 # Copy the current directory contents into the container at /app
 COPY . .

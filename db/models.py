@@ -103,6 +103,7 @@ class Order(db.Model):
     shipping_address = db.Column(db.String(255))
     custom_logo_url = db.Column(db.Text)
     design_file_url = db.Column(db.Text)
+    effect_images_json = db.Column(db.JSON)
     remarks = db.Column(db.Text)
     owner_id = db.Column(db.String(36), db.ForeignKey("users.id"))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
