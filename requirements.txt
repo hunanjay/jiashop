@@ -9,3 +9,7 @@ flasgger
 casbin
 oss2
 Pillow
+langchain
+langchain-openai
+langchain-community
+python-dotenv

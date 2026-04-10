@@ -7,6 +7,7 @@ from api.orders import orders_bp
 from api.public_checkout import public_checkout_bp
 from api.products import products_bp
 from api.upload import upload_bp
+from api.ai import ai_bp
 
 
 def register_blueprints(app):
@@ -20,3 +21,4 @@ def register_blueprints(app):
     app.register_blueprint(admin_bp)
     app.register_blueprint(workspace_bp)
     app.register_blueprint(upload_bp)
+    app.register_blueprint(ai_bp)
