@@ -29,6 +29,7 @@ p, user, /api/workspace/customers/:customer_id, DELETE
 p, user, /api/admin/product-categories, GET
 p, user, /api/admin/product-categories, POST
 p, user, /api/admin/product-categories/:category_id, PATCH
+p, user, /api/admin/product-categories/:category_id, DELETE
 p, admin, /api/admin/roles, GET
 p, admin, /api/admin/users/:user_id/role, PATCH
 p, admin, /api/admin/product-categories, GET
@@ -66,6 +67,7 @@ p, admin, /api/admin/products/:product_id, DELETE
 p, admin, /api/admin/product-categories, GET
 p, admin, /api/admin/product-categories, POST
 p, admin, /api/admin/product-categories/:category_id, PATCH
+p, admin, /api/admin/product-categories/:category_id, DELETE
 p, superadmin, *, *
 g, admin, user
 g, superadmin, admin

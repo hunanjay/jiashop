@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, request
 
 from api.dependencies import require_permission
-from services.category_service import create_category, get_category_by_id, list_categories, update_category
+from services.category_service import create_category, get_category_by_id, list_categories, update_category, delete_category
 
 
 categories_bp = Blueprint("categories", __name__, url_prefix="/api")
@@ -146,3 +146,35 @@ def update_admin_category(category_id):
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
     return jsonify(_serialize_category(updated))
+
+
+@categories_bp.route("/admin/product-categories/<int:category_id>", methods=["DELETE"])
+@require_permission("/api/admin/product-categories/:category_id", "DELETE")
+def delete_admin_category(category_id):
+    """
+    Delete product category
+    ---
+    tags:
+      - Categories
+    security:
+      - bearerAuth: []
+    parameters:
+      - in: path
+        name: category_id
+        required: true
+        type: integer
+    responses:
+      200:
+        description: Category deleted
+      404:
+        description: Category not found
+      403:
+        description: Forbidden
+    """
+    category = get_category_by_id(category_id)
+    if not category:
+        return jsonify({"error": "Category not found"}), 404
+
+    delete_category(category)
+    return jsonify({"message": "Category deleted successfully"}), 200
+

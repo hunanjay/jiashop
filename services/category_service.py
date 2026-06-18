@@ -33,12 +33,17 @@ def create_category(name: str, sort_order: int = 0, active: bool = True):
     category = get_category_by_name(normalized)
     if category:
         category.active = active if active is not None else category.active
-        category.sort_order = sort_order if sort_order is not None else category.sort_order
+        if sort_order:
+            category.sort_order = sort_order
         db.session.add(category)
         db.session.commit()
         return category
 
-    category = ProductCategory(name=normalized, active=active, sort_order=sort_order or 0)
+    if not sort_order:
+        max_sort = db.session.query(func.max(ProductCategory.sort_order)).scalar() or 0
+        sort_order = max_sort + 1
+
+    category = ProductCategory(name=normalized, active=active, sort_order=sort_order)
     db.session.add(category)
     db.session.commit()
     return category
@@ -60,6 +65,15 @@ def update_category(category: ProductCategory, payload: dict):
     db.session.add(category)
     db.session.commit()
     return category
+
+
+def delete_category(category: ProductCategory):
+    from db.models import Product
+    # 将属于该分类的商品的分类字段置空（或设为 None）
+    Product.query.filter_by(category=category.name).update({"category": None})
+    db.session.delete(category)
+    db.session.commit()
+
 
 
 def ensure_category(name: str, allow_create: bool = False):
