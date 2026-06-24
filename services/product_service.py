@@ -31,7 +31,7 @@ def create_owned_product(payload, owner_id):
 
 
 def update_product(product, payload):
-    for field in ("name", "description", "price", "stock", "status", "image_url", "category", "customization_json", "sales_count", "specs"):
+    for field in ("name", "description", "price", "stock", "status", "image_url", "category", "customization_json", "sales_count", "specs", "variants_json", "images_json"):
         if field in payload:
             setattr(product, field, payload[field])
     product.updated_at = datetime.utcnow()

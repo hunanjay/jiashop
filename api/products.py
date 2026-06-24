@@ -29,6 +29,7 @@ def _serialize_product(product):
         "image_url": get_signed_url(product.image_url),
         "images": [get_signed_url(img) for img in (product.images_json or [])],
         "category": product.category,
+        "variants": product.variants_json or [],
         "customization": product.customization_json,
         "owner_id": product.owner_id,
         "sales_count": product.sales_count,
@@ -81,6 +82,7 @@ def _extract_product_payload():
         "images_json": [upload_base64_to_oss(img) for img in (data.get("images") or [])],
         "category": data.get("category"),
         "customization_json": data.get("customization") or {},
+        "variants_json": data.get("variants") or [],
     }, None
 
 
@@ -320,6 +322,8 @@ def update_product(product_id):
         payload["customization_json"] = data.get("customization") or {}
     if "specs" in data:
         payload["specs"] = data.get("specs")
+    if "variants" in data:
+        payload["variants_json"] = data.get("variants") or []
     if "status" in data and data.get("status") is not None:
         payload["status"] = (data.get("status") or "active").strip() if isinstance(data.get("status"), str) else data.get("status")
 
