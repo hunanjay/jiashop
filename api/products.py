@@ -22,6 +22,7 @@ def _serialize_product(product):
         "id": product.id,
         "name": product.name,
         "description": product.description,
+        "specs": product.specs,
         "price": product.price,
         "stock": product.stock,
         "status": product.status,
@@ -72,6 +73,7 @@ def _extract_product_payload():
     return {
         "name": name,
         "description": data.get("description"),
+        "specs": data.get("specs"),
         "price": price,
         "stock": stock,
         "status": status,
@@ -316,6 +318,8 @@ def update_product(product_id):
         payload["category"] = category_name
     if "customization" in data:
         payload["customization_json"] = data.get("customization") or {}
+    if "specs" in data:
+        payload["specs"] = data.get("specs")
     if "status" in data and data.get("status") is not None:
         payload["status"] = (data.get("status") or "active").strip() if isinstance(data.get("status"), str) else data.get("status")
 

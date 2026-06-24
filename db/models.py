@@ -60,6 +60,7 @@ class Product(db.Model):
     image_url = db.Column(db.Text)
     images_json = db.Column(db.JSON)
     category = db.Column(db.String(50))
+    specs = db.Column(db.Text)
     customization_json = db.Column(db.JSON)
     owner_id = db.Column(db.String(36), db.ForeignKey("users.id"))
     sales_count = db.Column(db.Integer, nullable=False, default=0)

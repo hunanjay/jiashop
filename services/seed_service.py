@@ -37,6 +37,7 @@ DEFAULT_PRODUCTS = [
     {
         "name": "Custom Engraved Crystal Award",
         "description": "Premium crystal award with custom engraving. Elegant and timeless.",
+        "specs": "Material: K9 Crystal\nSize: 20cm x 12cm x 5cm\nWeight: 1.2kg",
         "price": 89.99,
         "stock": 4,
         "image_url": "https://images.unsplash.com/photo-1549461717-d2c676941db9?auto=format&fit=crop&q=80&w=400",
@@ -47,6 +48,7 @@ DEFAULT_PRODUCTS = [
     {
         "name": "Personalized Leather Notebook",
         "description": "High-quality leather-bound notebook with gold-leaf initials.",
+        "specs": "Material: Genuine Leather\nPages: 200 pages\nPaper: 100gsm wood-free paper\nSize: A5",
         "price": 45.0,
         "stock": 12,
         "image_url": "https://images.unsplash.com/photo-1544816155-12df9643f363?auto=format&fit=crop&q=80&w=400",
@@ -57,6 +59,7 @@ DEFAULT_PRODUCTS = [
     {
         "name": "Branded Executive Gift Box",
         "description": "Curated premium gift set with logo card and premium packaging.",
+        "specs": "Contents: Thermos, Pen, Notebook, Gift box\nBox Size: 30cm x 25cm x 10cm",
         "price": 129.0,
         "stock": 8,
         "image_url": "https://images.unsplash.com/photo-1513885535751-8b9238bd345a?auto=format&fit=crop&q=80&w=400",
@@ -124,6 +127,7 @@ def _upsert_product(entry):
         return product
 
     product.description = entry["description"]
+    product.specs = entry.get("specs")
     product.price = entry["price"]
     product.stock = entry["stock"]
     product.image_url = entry["image_url"]
