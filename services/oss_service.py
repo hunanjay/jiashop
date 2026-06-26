@@ -24,6 +24,10 @@ def upload_base64_to_oss(base64_str, user_id="system"):
     Uploads a base64 encoded image string to Aliyun OSS and returns the Object Key.
     """
     if not isinstance(base64_str, str) or not base64_str.startswith("data:"):
+        # If it's a full signed URL, extract the key (e.g. uploads/xxx/yyy.webp)
+        if isinstance(base64_str, str) and '/uploads/' in base64_str:
+            key = 'uploads/' + base64_str.split('/uploads/')[1].split('?')[0]
+            return key
         return base64_str
 
     bucket = _get_bucket()
@@ -53,7 +57,7 @@ def upload_base64_to_oss(base64_str, user_id="system"):
         print("Failed to upload to OSS:", str(e))
         raise RuntimeError(f"Failed to upload to OSS: {str(e)}")
 
-def get_signed_url(image_path, expires=3600):
+def get_signed_url(image_path, expires=604800):
     """
     Generates a signed URL for an Object Key. 
     If image_path is already a full URL or doesn't look like an OSS path, returns it as is.
@@ -70,7 +74,7 @@ def get_signed_url(image_path, expires=3600):
         return image_path
         
     try:
-        # Generate a signed URL valid for 1 hour by default
+        # Generate a signed URL valid for 7 days by default
         return bucket.sign_url('GET', image_path, expires)
     except Exception as e:
         print(f"Failed to sign URL for {image_path}: {e}")
