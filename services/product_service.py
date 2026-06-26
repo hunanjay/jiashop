@@ -4,16 +4,16 @@ from db.models import Product, db
 
 
 def list_products():
-    return Product.query.filter(Product.status != "deleted").order_by(Product.created_at.desc()).all()
+    return Product.query.filter(Product.deleted_at.is_(None)).order_by(Product.created_at.desc()).all()
 
 
 def list_products_for_owner(owner_id):
-    return Product.query.filter(Product.owner_id == owner_id, Product.status != "deleted").order_by(Product.created_at.desc()).all()
+    return Product.query.filter(Product.owner_id == owner_id, Product.deleted_at.is_(None)).order_by(Product.created_at.desc()).all()
 
 
 def get_product(product_id):
     product = Product.query.get(product_id)
-    if product and product.status == "deleted":
+    if product and product.deleted_at is not None:
         return None
     return product
 
@@ -31,7 +31,7 @@ def create_owned_product(payload, owner_id):
 
 
 def update_product(product, payload):
-    for field in ("name", "description", "price", "stock", "status", "image_url", "category", "customization_json", "sales_count", "specs", "variants_json", "images_json"):
+    for field in ("name", "description", "price", "stock", "status", "image_url", "category", "customization_json", "sales_count", "specs", "variants_json", "images_json", "is_featured", "is_promotion"):
         if field in payload:
             setattr(product, field, payload[field])
     product.updated_at = datetime.utcnow()
@@ -40,6 +40,6 @@ def update_product(product, payload):
 
 
 def delete_product(product):
-    product.status = "deleted"
+    product.deleted_at = datetime.utcnow()
     product.updated_at = datetime.utcnow()
     db.session.commit()

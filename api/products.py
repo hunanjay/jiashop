@@ -33,6 +33,8 @@ def _serialize_product(product):
         "customization": product.customization_json,
         "owner_id": product.owner_id,
         "sales_count": product.sales_count,
+        "is_featured": product.is_featured,
+        "is_promotion": product.is_promotion,
         "updated_at": product.updated_at.isoformat() if product.updated_at else None,
         "created_at": product.created_at.isoformat() if product.created_at else None,
     }
@@ -83,6 +85,8 @@ def _extract_product_payload():
         "category": data.get("category"),
         "customization_json": data.get("customization") or {},
         "variants_json": data.get("variants") or [],
+        "is_featured": bool(data.get("is_featured", False)),
+        "is_promotion": bool(data.get("is_promotion", False)),
     }, None
 
 
@@ -134,7 +138,7 @@ def search_products():
 
     products = (
         Product.query.filter(
-            Product.status != "deleted",
+            Product.deleted_at.is_(None),
             or_(Product.name.ilike(f"%{query}%"), Product.description.ilike(f"%{query}%"), Product.category.ilike(f"%{query}%"))
         )
         .order_by(
@@ -326,6 +330,10 @@ def update_product(product_id):
         payload["variants_json"] = data.get("variants") or []
     if "status" in data and data.get("status") is not None:
         payload["status"] = (data.get("status") or "active").strip() if isinstance(data.get("status"), str) else data.get("status")
+    if "is_featured" in data:
+        payload["is_featured"] = bool(data.get("is_featured"))
+    if "is_promotion" in data:
+        payload["is_promotion"] = bool(data.get("is_promotion"))
 
     product = service_update_product(product, payload)
     return jsonify(_serialize_product(product))
@@ -362,4 +370,4 @@ def delete_product(product_id):
         return jsonify({"error": "Can only delete your own product"}), 403
 
     service_delete_product(product)
-    return jsonify({"message": "Product deleted", "id": product_id, "status": "deleted"})
+    return jsonify({"message": "Product deleted", "id": product_id})

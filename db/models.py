@@ -65,6 +65,9 @@ class Product(db.Model):
     customization_json = db.Column(db.JSON)
     owner_id = db.Column(db.String(36), db.ForeignKey("users.id"))
     sales_count = db.Column(db.Integer, nullable=False, default=0)
+    is_featured = db.Column(db.Boolean, nullable=False, default=False)
+    is_promotion = db.Column(db.Boolean, nullable=False, default=False)
+    deleted_at = db.Column(db.DateTime, nullable=True)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
