@@ -25,9 +25,11 @@ def upload_base64_to_oss(base64_str, user_id="system"):
     """
     if not isinstance(base64_str, str) or not base64_str.startswith("data:"):
         # If it's a full signed URL, extract the key (e.g. uploads/xxx/yyy.webp)
-        if isinstance(base64_str, str) and '/uploads/' in base64_str:
-            key = 'uploads/' + base64_str.split('/uploads/')[1].split('?')[0]
-            return key
+        if isinstance(base64_str, str):
+            decoded = base64_str.replace('%2F', '/')
+            if '/uploads/' in decoded:
+                key = 'uploads/' + decoded.split('/uploads/')[1].split('?')[0]
+                return key
         return base64_str
 
     bucket = _get_bucket()

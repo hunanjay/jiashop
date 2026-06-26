@@ -16,8 +16,10 @@ from db.models import Product, Order
 
 def extract_key(url):
     """Return bare OSS key if url is a signed URL, else return as-is."""
-    if isinstance(url, str) and '/uploads/' in url:
-        return 'uploads/' + url.split('/uploads/')[1].split('?')[0]
+    if isinstance(url, str):
+        decoded = url.replace('%2F', '/')
+        if '/uploads/' in decoded:
+            return 'uploads/' + decoded.split('/uploads/')[1].split('?')[0]
     return url
 
 
