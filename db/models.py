@@ -59,6 +59,7 @@ class Product(db.Model):
     status = db.Column(db.String(20), default="active", nullable=False)
     image_url = db.Column(db.Text)
     images_json = db.Column(db.JSON)
+    main_images_json = db.Column(db.JSON)
     category = db.Column(db.String(50))
     specs = db.Column(db.Text)
     variants_json = db.Column(db.JSON)
@@ -120,6 +121,18 @@ class CartItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     cart_token = db.Column(db.String(64), nullable=False, index=True)
     product_id = db.Column(db.String(36), db.ForeignKey("products.id"), nullable=False)
+    variant_name = db.Column(db.String(200), nullable=False, default="")
     quantity = db.Column(db.Integer, nullable=False, default=1)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class Visit(db.Model):
+    __tablename__ = "visits"
+
+    id = db.Column(db.Integer, primary_key=True)
+    device_id = db.Column(db.String(64), nullable=False, index=True)
+    path = db.Column(db.String(255))
+    ip = db.Column(db.String(45))
+    user_agent = db.Column(db.String(255))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)

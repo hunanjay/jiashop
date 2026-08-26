@@ -27,6 +27,10 @@ def _serialize_product(product):
         "stock": product.stock,
         "status": product.status,
         "image_url": get_signed_url(product.image_url),
+        "main_images": [
+            get_signed_url(img)
+            for img in (product.main_images_json or ([product.image_url] if product.image_url else []))
+        ],
         "images": [get_signed_url(img) for img in (product.images_json or [])],
         "category": product.category,
         "variants": product.variants_json or [],
@@ -73,6 +77,11 @@ def _extract_product_payload():
     else:
         status = status or "active"
 
+    raw_main_images = data.get("main_images")
+    if raw_main_images is None:
+        raw_main_images = [data.get("image_url")] if data.get("image_url") else []
+    main_images = [upload_base64_to_oss(img) for img in raw_main_images if img]
+
     return {
         "name": name,
         "description": data.get("description"),
@@ -80,7 +89,8 @@ def _extract_product_payload():
         "price": price,
         "stock": stock,
         "status": status,
-        "image_url": upload_base64_to_oss(data.get("image_url")),
+        "image_url": main_images[0] if main_images else "",
+        "main_images_json": main_images,
         "images_json": [upload_base64_to_oss(img) for img in (data.get("images") or [])],
         "category": data.get("category"),
         "customization_json": data.get("customization") or {},
@@ -114,6 +124,97 @@ def list_products():
     """
     products = service_list_products()
     return jsonify([_serialize_product(product) for product in products])
+
+
+PRICE_BUCKETS = {
+    "0-50": (None, 50),
+    "50-150": (50, 150),
+    "150+": (150, None),
+}
+
+
+@products_bp.route("/products/catalog", methods=["GET"])
+def catalog_products():
+    """
+    Paginated + filtered product catalog
+    ---
+    tags:
+      - Products
+    parameters:
+      - in: query
+        name: page
+        type: integer
+      - in: query
+        name: page_size
+        type: integer
+      - in: query
+        name: q
+        type: string
+      - in: query
+        name: category
+        type: string
+      - in: query
+        name: price
+        type: string
+        enum: [all, 0-50, 50-150, 150+]
+      - in: query
+        name: tag
+        type: string
+        enum: [all, featured, promotion]
+    responses:
+      200:
+        description: Paginated product list
+    """
+    page = max(1, request.args.get("page", 1, type=int))
+    page_size = min(60, max(1, request.args.get("page_size", 20, type=int)))
+    query_text = (request.args.get("q") or "").strip()
+    category = (request.args.get("category") or "all").strip()
+    price = (request.args.get("price") or "all").strip()
+    tag = (request.args.get("tag") or "all").strip()
+
+    query = Product.query.filter(Product.deleted_at.is_(None))
+
+    if query_text:
+        like = f"%{query_text}%"
+        query = query.filter(
+            or_(
+                Product.name.ilike(like),
+                Product.description.ilike(like),
+                Product.category.ilike(like),
+                Product.specs.ilike(like),
+            )
+        )
+
+    if category != "all":
+        query = query.filter(Product.category == category)
+
+    if price in PRICE_BUCKETS:
+        low, high = PRICE_BUCKETS[price]
+        if low is not None:
+            query = query.filter(Product.price >= low)
+        if high is not None:
+            query = query.filter(Product.price < high)
+
+    if tag == "featured":
+        query = query.filter(Product.is_featured.is_(True))
+    elif tag == "promotion":
+        query = query.filter(Product.is_promotion.is_(True))
+
+    score = case((Product.is_featured.is_(True), 2), else_=0) + case((Product.is_promotion.is_(True), 1), else_=0)
+    query = query.order_by(score.desc(), Product.sales_count.desc(), Product.created_at.desc())
+
+    total = query.count()
+    items = query.offset((page - 1) * page_size).limit(page_size).all()
+
+    return jsonify(
+        {
+            "items": [_serialize_product(product) for product in items],
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": max(1, (total + page_size - 1) // page_size),
+        }
+    )
 
 
 @products_bp.route("/products/search", methods=["GET"])
@@ -313,7 +414,11 @@ def update_product(product_id):
         if stock is None or stock < 0:
             return jsonify({"error": "Product stock must be a non-negative integer"}), 400
         payload["stock"] = stock
-    if "image_url" in data:
+    if "main_images" in data:
+        main_images = [upload_base64_to_oss(img) for img in (data.get("main_images") or []) if img]
+        payload["main_images_json"] = main_images
+        payload["image_url"] = main_images[0] if main_images else ""
+    elif "image_url" in data:
         payload["image_url"] = upload_base64_to_oss(data.get("image_url"))
     if "images" in data:
         payload["images_json"] = [upload_base64_to_oss(img) for img in (data.get("images") or [])]
