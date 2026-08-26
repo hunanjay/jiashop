@@ -59,6 +59,7 @@ class Product(db.Model):
     status = db.Column(db.String(20), default="active", nullable=False)
     image_url = db.Column(db.Text)
     images_json = db.Column(db.JSON)
+    main_images_json = db.Column(db.JSON)
     category = db.Column(db.String(50))
     specs = db.Column(db.Text)
     variants_json = db.Column(db.JSON)

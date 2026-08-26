@@ -27,6 +27,10 @@ def _serialize_product(product):
         "stock": product.stock,
         "status": product.status,
         "image_url": get_signed_url(product.image_url),
+        "main_images": [
+            get_signed_url(img)
+            for img in (product.main_images_json or ([product.image_url] if product.image_url else []))
+        ],
         "images": [get_signed_url(img) for img in (product.images_json or [])],
         "category": product.category,
         "variants": product.variants_json or [],
@@ -73,6 +77,11 @@ def _extract_product_payload():
     else:
         status = status or "active"
 
+    raw_main_images = data.get("main_images")
+    if raw_main_images is None:
+        raw_main_images = [data.get("image_url")] if data.get("image_url") else []
+    main_images = [upload_base64_to_oss(img) for img in raw_main_images if img]
+
     return {
         "name": name,
         "description": data.get("description"),
@@ -80,7 +89,8 @@ def _extract_product_payload():
         "price": price,
         "stock": stock,
         "status": status,
-        "image_url": upload_base64_to_oss(data.get("image_url")),
+        "image_url": main_images[0] if main_images else "",
+        "main_images_json": main_images,
         "images_json": [upload_base64_to_oss(img) for img in (data.get("images") or [])],
         "category": data.get("category"),
         "customization_json": data.get("customization") or {},
@@ -313,7 +323,11 @@ def update_product(product_id):
         if stock is None or stock < 0:
             return jsonify({"error": "Product stock must be a non-negative integer"}), 400
         payload["stock"] = stock
-    if "image_url" in data:
+    if "main_images" in data:
+        main_images = [upload_base64_to_oss(img) for img in (data.get("main_images") or []) if img]
+        payload["main_images_json"] = main_images
+        payload["image_url"] = main_images[0] if main_images else ""
+    elif "image_url" in data:
         payload["image_url"] = upload_base64_to_oss(data.get("image_url"))
     if "images" in data:
         payload["images_json"] = [upload_base64_to_oss(img) for img in (data.get("images") or [])]
