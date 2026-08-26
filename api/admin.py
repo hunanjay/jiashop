@@ -1,5 +1,6 @@
 import csv
 import io
+import os
 from datetime import datetime, timedelta
 
 from flask import Blueprint, jsonify, make_response, request
@@ -7,7 +8,7 @@ from sqlalchemy import func
 from werkzeug.security import generate_password_hash
 
 from api.dependencies import require_permission
-from db.models import Customer, User, db
+from db.models import Customer, User, Visit, db
 from db.models import Order
 from services.admin_service import get_role_by_name, list_roles, update_user_role
 from api.dependencies import get_current_user
@@ -426,6 +427,23 @@ def admin_stats():
             }
         )
 
+    # ponytail: 统计按 UTC+STATS_TZ_OFFSET 分天，默认东八区；部署在别的时区改环境变量即可
+    tz_offset = timedelta(hours=int(os.environ.get("STATS_TZ_OFFSET", 8)))
+    visit_rows = Visit.query.filter(Visit.created_at >= week_start).all()
+    visit_trend = []
+    for offset in range(7):
+        day = (week_start + timedelta(days=offset) + tz_offset).date()
+        day_visits = [visit for visit in visit_rows if visit.created_at and (visit.created_at + tz_offset).date() == day]
+        visit_trend.append(
+            {
+                "label": day.strftime("%m-%d"),
+                "pv": len(day_visits),
+                "uv": len({visit.device_id for visit in day_visits}),
+            }
+        )
+    today = (now + tz_offset).date()
+    today_visits = [visit for visit in visit_rows if visit.created_at and (visit.created_at + tz_offset).date() == today]
+
     monthly_summary = {
         "orders": len(month_orders),
         "sales_total": float(sum(float(order.total_price or 0) for order in month_orders)),
@@ -458,6 +476,13 @@ def admin_stats():
                 "owner_distribution": [
                     {"username": username or "Unassigned", "count": int(count or 0)} for username, count in customer_owner_rows
                 ],
+            },
+            "visits": {
+                "total_pv": Visit.query.count(),
+                "total_uv": db.session.query(func.count(func.distinct(Visit.device_id))).scalar() or 0,
+                "today_pv": len(today_visits),
+                "today_uv": len({visit.device_id for visit in today_visits}),
+                "daily_trend": visit_trend,
             },
             "daily_trend": daily_trend,
             "weekly_summary": weekly_summary,
