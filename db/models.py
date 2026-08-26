@@ -121,6 +121,7 @@ class CartItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     cart_token = db.Column(db.String(64), nullable=False, index=True)
     product_id = db.Column(db.String(36), db.ForeignKey("products.id"), nullable=False)
+    variant_name = db.Column(db.String(200), nullable=False, default="")
     quantity = db.Column(db.Integer, nullable=False, default=1)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
