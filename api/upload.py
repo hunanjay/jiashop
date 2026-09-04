@@ -1,4 +1,5 @@
 import os
+import traceback
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from services.oss_service import upload_base64_to_oss, get_signed_url
@@ -27,5 +28,6 @@ def upload_file():
         })
 
     except Exception as e:
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
