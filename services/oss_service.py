@@ -76,3 +76,21 @@ def get_signed_url(image_path, expires=604800):
         print(f"Failed to sign URL for {image_path}: {e}")
         return image_path
 
+def download_image_bytes(image_path):
+    """
+    Downloads the raw bytes for a stored OSS object key (e.g. "uploads/xxx/yyy.webp").
+    Returns None if the path isn't one of ours, OSS isn't configured, or the fetch fails.
+    """
+    if not image_path or not isinstance(image_path, str) or not image_path.startswith("uploads/"):
+        return None
+
+    bucket = _get_bucket()
+    if not bucket:
+        return None
+
+    try:
+        return bucket.get_object(image_path).read()
+    except Exception as e:
+        print(f"Failed to download {image_path}: {e}")
+        return None
+

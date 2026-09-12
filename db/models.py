@@ -96,6 +96,36 @@ class Customer(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class CommissionRecord(db.Model):
+    __tablename__ = "commission_records"
+
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    platform = db.Column(db.String(20), nullable=False, default="淘宝")
+    shop_name = db.Column(db.String(120), nullable=False)
+    product_name = db.Column(db.String(120), nullable=False)
+    product_image = db.Column(db.Text)
+    order_no = db.Column(db.String(100), nullable=False)
+    order_time = db.Column(db.DateTime)
+    quantity = db.Column(db.Integer, nullable=False, default=1)
+    amount = db.Column(db.Float, nullable=False)
+    commission = db.Column(db.Float, nullable=False)
+    owner_id = db.Column(db.String(36), db.ForeignKey("users.id"))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class Shop(db.Model):
+    """A user's own remembered shop names, auto-collected from their commission records."""
+
+    __tablename__ = "shops"
+    __table_args__ = (db.UniqueConstraint("owner_id", "name", name="uq_shops_owner_name"),)
+
+    id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = db.Column(db.String(120), nullable=False)
+    owner_id = db.Column(db.String(36), db.ForeignKey("users.id"), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
 class Order(db.Model):
     __tablename__ = "orders"
 

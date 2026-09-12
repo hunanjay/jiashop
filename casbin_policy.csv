@@ -26,6 +26,12 @@ p, user, /api/workspace/customers, GET
 p, user, /api/workspace/customers, POST
 p, user, /api/workspace/customers/:customer_id, PATCH
 p, user, /api/workspace/customers/:customer_id, DELETE
+p, user, /api/workspace/commissions, GET
+p, user, /api/workspace/commissions, POST
+p, user, /api/workspace/commissions/:record_id, PATCH
+p, user, /api/workspace/commissions/:record_id, DELETE
+p, user, /api/workspace/commissions/export, GET
+p, user, /api/workspace/shops, GET
 p, user, /api/admin/product-categories, GET
 p, user, /api/admin/product-categories, POST
 p, user, /api/admin/product-categories/:category_id, PATCH
@@ -50,6 +56,11 @@ p, admin, /api/workspace/customers, GET
 p, admin, /api/workspace/customers, POST
 p, admin, /api/workspace/customers/:customer_id, PATCH
 p, admin, /api/workspace/customers/:customer_id, DELETE
+p, admin, /api/admin/commissions, GET
+p, admin, /api/admin/commissions, POST
+p, admin, /api/admin/commissions/:record_id, PATCH
+p, admin, /api/admin/commissions/:record_id, DELETE
+p, admin, /api/admin/commissions/export, GET
 p, admin, /api/workspace/orders/:order_id/note, POST
 p, admin, /api/workspace/orders/:order_id/timeline, GET
 p, admin, /api/workspace/orders/:order_id, PUT

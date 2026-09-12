@@ -4,13 +4,18 @@ import os
 from datetime import datetime, timedelta
 
 from flask import Blueprint, jsonify, make_response, request
+from openpyxl import Workbook
+from openpyxl.drawing.image import Image as XLImage
+from openpyxl.utils import get_column_letter
+from PIL import Image as PILImage
 from sqlalchemy import func
 from werkzeug.security import generate_password_hash
 
 from api.dependencies import require_permission
-from db.models import Customer, User, Visit, db
+from db.models import CommissionRecord, Customer, Shop, User, Visit, db
 from db.models import Order
 from services.admin_service import get_role_by_name, list_roles, update_user_role
+from services.oss_service import download_image_bytes, get_signed_url, upload_base64_to_oss
 from api.dependencies import get_current_user
 
 
@@ -375,6 +380,336 @@ def workspace_delete_customer(customer_id):
     db.session.delete(customer)
     db.session.commit()
     return jsonify({"deleted": True, "id": customer_id})
+
+
+COMMISSION_PLATFORMS = ("淘宝", "小红书")
+
+
+def _remember_shop(owner_id, shop_name):
+    """Adds shop_name to the owner's known-shops list if it's new, so it can be suggested next time."""
+    if not owner_id or not shop_name:
+        return
+    exists = Shop.query.filter_by(owner_id=owner_id, name=shop_name).first()
+    if not exists:
+        db.session.add(Shop(name=shop_name, owner_id=owner_id))
+        db.session.commit()
+
+
+def _parse_order_time(value):
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+
+
+def _serialize_commission(record: CommissionRecord):
+    return {
+        "id": record.id,
+        "platform": record.platform,
+        "shop_name": record.shop_name,
+        "product_name": record.product_name,
+        "product_image": get_signed_url(record.product_image),
+        "order_no": record.order_no,
+        "order_time": record.order_time.isoformat() if record.order_time else None,
+        "quantity": record.quantity,
+        "amount": record.amount,
+        "commission": record.commission,
+        "owner_id": record.owner_id,
+        "created_at": record.created_at.isoformat() if record.created_at else None,
+        "updated_at": record.updated_at.isoformat() if record.updated_at else None,
+    }
+
+
+def _extract_commission_payload(data, current_user):
+    platform = (data.get("platform") or "").strip() or COMMISSION_PLATFORMS[0]
+    shop_name = (data.get("shop_name") or "").strip()
+    product_name = (data.get("product_name") or "").strip()
+    order_no = (data.get("order_no") or "").strip()
+    if platform not in COMMISSION_PLATFORMS:
+        return None, jsonify({"error": f"platform must be one of {COMMISSION_PLATFORMS}"}), 400
+    if not shop_name or not product_name or not order_no:
+        return None, jsonify({"error": "shop_name, product_name and order_no are required"}), 400
+
+    try:
+        quantity = int(data.get("quantity", 1))
+        amount = float(data.get("amount", 0))
+        commission = float(data.get("commission", 0))
+    except (TypeError, ValueError):
+        return None, jsonify({"error": "quantity, amount and commission must be numbers"}), 400
+
+    payload = {
+        "platform": platform,
+        "shop_name": shop_name,
+        "product_name": product_name,
+        "order_no": order_no,
+        "order_time": _parse_order_time(data.get("order_time")),
+        "quantity": quantity,
+        "amount": amount,
+        "commission": commission,
+    }
+    if "product_image" in data:
+        payload["product_image"] = upload_base64_to_oss(data.get("product_image"), user_id=current_user.id if current_user else "system") or None
+    return payload, None, None
+
+
+def _filter_commissions(query):
+    """Applies the shared ?platform=&month=YYYY-MM query params used by list and export."""
+    platform = (request.args.get("platform") or "").strip()
+    if platform and platform in COMMISSION_PLATFORMS:
+        query = query.filter(CommissionRecord.platform == platform)
+
+    month = (request.args.get("month") or "").strip()
+    if month:
+        try:
+            start = datetime.strptime(month, "%Y-%m")
+        except ValueError:
+            return query
+        end = (start + timedelta(days=32)).replace(day=1)
+        query = query.filter(CommissionRecord.order_time >= start, CommissionRecord.order_time < end)
+    return query
+
+
+COMMISSION_IMAGE_DISPLAY_PX = 60  # on-screen size in the cell; the embedded file stays full-res
+
+
+def _commission_xlimage(image_path):
+    """Downloads a commission record's product image at full resolution and
+    returns it as an openpyxl Image ready to anchor into a cell, or None if
+    unavailable. The PNG bytes are kept at full resolution (not compressed) —
+    only the on-screen display width/height is scaled down so the picture
+    actually sits inside its row instead of overflowing across the sheet."""
+    raw = download_image_bytes(image_path)
+    if not raw:
+        return None
+    try:
+        pil_img = PILImage.open(io.BytesIO(raw)).convert("RGB")
+        buf = io.BytesIO()
+        pil_img.save(buf, format="PNG")
+        buf.seek(0)
+        xl_img = XLImage(buf)
+        scale = COMMISSION_IMAGE_DISPLAY_PX / max(pil_img.width, pil_img.height)
+        xl_img.width = pil_img.width * scale
+        xl_img.height = pil_img.height * scale
+        return xl_img
+    except Exception as e:
+        print(f"Failed to embed image for {image_path}: {e}")
+        return None
+
+
+def _export_commissions_xlsx(records, include_owner, owner_map):
+    header = ["平台", "店铺名", "产品图片", "产品名称", "订单号", "下单时间", "数量", "金额", "佣金"]
+    if include_owner:
+        header.append("归属人员")
+    header.append("创建时间")
+    image_col = header.index("产品图片") + 1  # 1-indexed for openpyxl
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "佣金记录"
+    ws.append(header)
+    for cell in ws[1]:
+        cell.font = cell.font.copy(bold=True)
+    ws.column_dimensions[get_column_letter(image_col)].width = COMMISSION_IMAGE_DISPLAY_PX / 7 + 2
+
+    for row_idx, record in enumerate(records, start=2):
+        row = [
+            record.platform,
+            record.shop_name,
+            "",  # image goes in as a floating picture, not cell text
+            record.product_name,
+            record.order_no,
+            record.order_time.isoformat(sep=" ") if record.order_time else "",
+            record.quantity,
+            record.amount,
+            record.commission,
+        ]
+        if include_owner:
+            row.append(owner_map.get(record.owner_id, record.owner_id or ""))
+        row.append(record.created_at.isoformat(sep=" ") if record.created_at else "")
+        ws.append(row)
+
+        image = _commission_xlimage(record.product_image)
+        if image:
+            ws.row_dimensions[row_idx].height = COMMISSION_IMAGE_DISPLAY_PX * 0.75 + 5
+            ws.add_image(image, f"{get_column_letter(image_col)}{row_idx}")
+
+    for col_idx, title in enumerate(header, start=1):
+        if col_idx == image_col:
+            continue
+        ws.column_dimensions[get_column_letter(col_idx)].width = max(12, len(title) + 4)
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    response = make_response(output.getvalue())
+    response.headers["Content-Type"] = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    response.headers["Content-Disposition"] = 'attachment; filename="commissions.xlsx"'
+    return response
+
+
+@admin_bp.route("/commissions", methods=["GET"])
+@require_permission("/api/admin/commissions", "GET")
+def list_commissions():
+    query = _filter_commissions(CommissionRecord.query)
+    records = query.order_by(CommissionRecord.created_at.desc()).all()
+    return jsonify([_serialize_commission(record) for record in records])
+
+
+@admin_bp.route("/commissions/export", methods=["GET"])
+@require_permission("/api/admin/commissions/export", "GET")
+def export_commissions():
+    query = _filter_commissions(CommissionRecord.query)
+    records = query.order_by(CommissionRecord.created_at.desc()).all()
+    owner_map = {user.id: user.username for user in User.query.all()}
+    return _export_commissions_xlsx(records, include_owner=True, owner_map=owner_map)
+
+
+@admin_bp.route("/commissions", methods=["POST"])
+@require_permission("/api/admin/commissions", "POST")
+def create_commission():
+    data = request.get_json(silent=True) or {}
+    current_user = get_current_user()
+    payload, error_response, status = _extract_commission_payload(data, current_user)
+    if error_response:
+        return error_response, status
+
+    payload["owner_id"] = (data.get("owner_id") or "").strip() or (current_user.id if current_user else None)
+    record = CommissionRecord(**payload)
+    db.session.add(record)
+    db.session.commit()
+    _remember_shop(record.owner_id, record.shop_name)
+    return jsonify(_serialize_commission(record)), 201
+
+
+@admin_bp.route("/commissions/<record_id>", methods=["PATCH"])
+@require_permission("/api/admin/commissions/:record_id", "PATCH")
+def update_commission(record_id):
+    record = CommissionRecord.query.get(record_id)
+    if not record:
+        return jsonify({"error": "Commission record not found"}), 404
+
+    data = request.get_json(silent=True) or {}
+    current_user = get_current_user()
+    payload, error_response, status = _extract_commission_payload(data, current_user)
+    if error_response:
+        return error_response, status
+
+    for key, value in payload.items():
+        setattr(record, key, value)
+    if "owner_id" in data:
+        record.owner_id = (data.get("owner_id") or "").strip() or None
+
+    db.session.add(record)
+    db.session.commit()
+    _remember_shop(record.owner_id, record.shop_name)
+    return jsonify(_serialize_commission(record))
+
+
+@admin_bp.route("/commissions/<record_id>", methods=["DELETE"])
+@require_permission("/api/admin/commissions/:record_id", "DELETE")
+def delete_commission(record_id):
+    record = CommissionRecord.query.get(record_id)
+    if not record:
+        return jsonify({"error": "Commission record not found"}), 404
+
+    db.session.delete(record)
+    db.session.commit()
+    return jsonify({"deleted": True, "id": record_id})
+
+
+@workspace_bp.route("/commissions", methods=["GET"])
+@require_permission("/api/workspace/commissions", "GET")
+def workspace_list_commissions():
+    current_user = get_current_user()
+    query = CommissionRecord.query
+    if current_user and current_user.role and current_user.role.name and current_user.role.name.lower() == "user":
+        query = query.filter(CommissionRecord.owner_id == current_user.id)
+    query = _filter_commissions(query)
+    records = query.order_by(CommissionRecord.created_at.desc()).all()
+    return jsonify([_serialize_commission(record) for record in records])
+
+
+@workspace_bp.route("/commissions/export", methods=["GET"])
+@require_permission("/api/workspace/commissions/export", "GET")
+def workspace_export_commissions():
+    current_user = get_current_user()
+    query = CommissionRecord.query
+    is_plain_user = current_user and current_user.role and current_user.role.name and current_user.role.name.lower() == "user"
+    if is_plain_user:
+        query = query.filter(CommissionRecord.owner_id == current_user.id)
+    query = _filter_commissions(query)
+    records = query.order_by(CommissionRecord.created_at.desc()).all()
+    owner_map = {} if is_plain_user else {user.id: user.username for user in User.query.all()}
+    return _export_commissions_xlsx(records, include_owner=not is_plain_user, owner_map=owner_map)
+
+
+@workspace_bp.route("/commissions", methods=["POST"])
+@require_permission("/api/workspace/commissions", "POST")
+def workspace_create_commission():
+    data = request.get_json(silent=True) or {}
+    current_user = get_current_user()
+    payload, error_response, status = _extract_commission_payload(data, current_user)
+    if error_response:
+        return error_response, status
+
+    payload["owner_id"] = current_user.id if current_user else None
+    record = CommissionRecord(**payload)
+    db.session.add(record)
+    db.session.commit()
+    _remember_shop(record.owner_id, record.shop_name)
+    return jsonify(_serialize_commission(record)), 201
+
+
+@workspace_bp.route("/commissions/<record_id>", methods=["PATCH"])
+@require_permission("/api/workspace/commissions/:record_id", "PATCH")
+def workspace_update_commission(record_id):
+    record = CommissionRecord.query.get(record_id)
+    if not record:
+        return jsonify({"error": "Commission record not found"}), 404
+
+    current_user = get_current_user()
+    if current_user and record.owner_id and record.owner_id != current_user.id:
+        return jsonify({"error": "Insufficient permissions"}), 403
+
+    data = request.get_json(silent=True) or {}
+    payload, error_response, status = _extract_commission_payload(data, current_user)
+    if error_response:
+        return error_response, status
+
+    for key, value in payload.items():
+        setattr(record, key, value)
+
+    db.session.add(record)
+    db.session.commit()
+    _remember_shop(record.owner_id, record.shop_name)
+    return jsonify(_serialize_commission(record))
+
+
+@workspace_bp.route("/commissions/<record_id>", methods=["DELETE"])
+@require_permission("/api/workspace/commissions/:record_id", "DELETE")
+def workspace_delete_commission(record_id):
+    record = CommissionRecord.query.get(record_id)
+    if not record:
+        return jsonify({"error": "Commission record not found"}), 404
+
+    current_user = get_current_user()
+    if current_user and record.owner_id and record.owner_id != current_user.id:
+        return jsonify({"error": "Insufficient permissions"}), 403
+
+    db.session.delete(record)
+    db.session.commit()
+    return jsonify({"deleted": True, "id": record_id})
+
+
+@workspace_bp.route("/shops", methods=["GET"])
+@require_permission("/api/workspace/shops", "GET")
+def workspace_list_shops():
+    current_user = get_current_user()
+    shops = Shop.query.filter_by(owner_id=current_user.id if current_user else None).order_by(Shop.name).all()
+    return jsonify([shop.name for shop in shops])
 
 
 @admin_bp.route("/stats", methods=["GET"])
