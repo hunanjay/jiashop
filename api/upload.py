@@ -1,10 +1,39 @@
 import os
 import traceback
-from flask import Blueprint, request, jsonify
+import re
+from io import BytesIO
+
+from flask import Blueprint, request, jsonify, send_file
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from services.oss_service import upload_base64_to_oss, get_signed_url
+from api.dependencies import require_roles
+from services.oss_service import upload_base64_to_oss, get_signed_url, download_image_bytes
 
 upload_bp = Blueprint("upload", __name__, url_prefix="/api/upload")
+
+
+@upload_bp.get("/image")
+@require_roles("admin", "superadmin")
+def get_image_for_clipboard():
+    """Return an owned OSS image through the same-origin API for clipboard use."""
+    key = request.args.get("key", "")
+    if not key.startswith("uploads/") or ".." in key.split("/") or not re.fullmatch(r"[A-Za-z0-9_./-]+", key):
+        return jsonify({"error": "Invalid image key"}), 400
+
+    image_data = download_image_bytes(key)
+    if image_data is None:
+        return jsonify({"error": "Image not found"}), 404
+
+    content_type = {
+        ".gif": "image/gif",
+        ".jpeg": "image/jpeg",
+        ".jpg": "image/jpeg",
+        ".png": "image/png",
+        ".webp": "image/webp",
+    }.get(os.path.splitext(key)[1].lower())
+    if not content_type:
+        return jsonify({"error": "Unsupported image type"}), 415
+
+    return send_file(BytesIO(image_data), mimetype=content_type, max_age=300)
 
 @upload_bp.route("", methods=["POST"])
 @jwt_required()
